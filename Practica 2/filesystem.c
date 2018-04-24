@@ -23,12 +23,13 @@ superBloque SB;
 int mkFS(long deviceSize)
 {
 	//Primero se comprueba que el tamanyo de disco se encuentre entre los limites permitidos
-	if(deviceSize < 51200 || deviceSize > 104857600){
+	if(deviceSize < MIN_DEVICE_SIZE || deviceSize > MAX_DEVICE_SIZE){
 		perror("mkFS: El sistema de ficheros tiene que estar entrer 50KiB y 100MiB");
 		return -1;
 	}
 	//Se crea el super bloque con sus valores por defecto
 	SB.numinodos = MAX_FILES;
+	SB.numbloques = deviceSize/MAX_BLOCKSIZE;
 	
 	int i;
 	for(i = 0; i< SB.numinodos; i++){
@@ -41,7 +42,7 @@ int mkFS(long deviceSize)
 
 	unmountFS();
 
-	printf("El Sistema de Ficheros se ha formateado exitosamente");
+	printf("El Sistema de Ficheros se ha formateado exitosamente \n");
 	return 0;
 
 }
@@ -93,29 +94,47 @@ int unmountFS(void)
  */
 int createFile(char *fileName)
 {
+
+/* Comprobación del tamaño del nombre del fichero
+	if(sizeof(fileName) > MAX_LONGNAME) {
+		perror("createFile: Nombre del archivo demasiado grande\n"); 
+		return -2;
+	}
+	int size = sizeof(fileName);
+	printf("createFile: Longitud %i \n", size);
+
+*/
 	
 	int i; 
 	//Primero descartamos que el fichero con ese nombre no existe y que esa posicion del mapa de inodos no esta ocupada
 	for(i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
-		if(strcmp(SB.inodos[i].filename, fileName) == 0 && SB.mapinodos[i]== 1){ 
+		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
 			perror("createFile: Ya existe un fichero con el mismo nombre\n");
 			return -1;
 		}
+	}
 
+	for(i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
 		if(SB.mapinodos[i] == 0){ //Si encontramos una posicion del mapa de inodos libre, se sale del bucle
 			break;
 		}
 	}
 
+	//Comprobamos que había algún bloque libre
+
+	if(i >= SB.numinodos) perror("createFile: No hay bloques libres\n");
+
+		
+
 	//Habiendo descartado los errores para poder crear el fichero, se procede a su creacion
-	SB.inodos[i].isopen = 0; //Se marca el fichero como cerrado
+	SB.inodos[i].isopen = FCLOSE; //Se marca el fichero como cerrado
 	SB.inodos[i].firstblock = i+1; //bloque de metadatos 1 (metadatos)+ numero posicion libre
 	strcpy(SB.inodos[i].filename, fileName); //Nombe del fichero el recibido por parametro
 	SB.inodos[i].filesize = 0; //Tamanyo inicial 0
 	SB.mapinodos[i] = 1; //Posicion del mapa de inodos ocupada
 
 	bwrite(DEVICE_IMAGE, SB.inodos[i].firstblock, (char*) &bufferBlock);
-	printf("createFile: Fichero %s creado con exito", SB.inodos[i].filename);
+	printf("createFile: Fichero %s creado con exito \n", SB.inodos[i].filename);
 	return 0;
 
 }

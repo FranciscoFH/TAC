@@ -26,6 +26,10 @@ static inline void bitmap_setbit(char *bitmap_, int i_, int val_) {
 
 #define MAX_FILES 40 //Maximo numero de ficheros
 
+#define MIN_DEVICE_SIZE 51200 //NUMERO MINIMO DE BYTES DEL DISPOSITIVO
+#define MAX_DEVICE_SIZE 104857600 //NUMERO MAXIMO DE BYTES DEL DISPOSITIVO
+#define FOPEN 1
+#define FCLOSE 0
 /*ESCTRUCTURAS*/
 typedef struct{
 	char filename[MAX_LONGNAME]; //Longitud maxima 32 caracteres
@@ -39,6 +43,7 @@ typedef struct{
 	uint8_t numinodos; //Numero de ficheros actualmente
 	char mapinodos[MAX_FILES]; //Mapa de inodos, si es 1 es que estan siendo usados, sino 0
 	iNodo inodos[MAX_FILES];
+	uint16_t numbloques;
 }superBloque;
 
 
