@@ -37,7 +37,8 @@ int mkFS(long deviceSize)
 //Se establecen los valores por defecto de los inodos en el mismo bucle
 		SB.inodos[i].filesize = 0;
 		SB.inodos[i].crc = 0;
-		SB.inodos[i].firstblock = 0;
+		SB.inodos[i].descriptor = 0;
+		SB.inodos[i].bloquesEnInodo = 0;
 	}
 
 	unmountFS();
@@ -104,7 +105,7 @@ int createFile(char *fileName)
 	printf("createFile: Longitud %i \n", size);
 
 */
-	
+
 	int i; 
 	//Primero descartamos que el fichero con ese nombre no existe y que esa posicion del mapa de inodos no esta ocupada
 	for(i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
@@ -128,12 +129,14 @@ int createFile(char *fileName)
 
 	//Habiendo descartado los errores para poder crear el fichero, se procede a su creacion
 	SB.inodos[i].isopen = FCLOSE; //Se marca el fichero como cerrado
-	SB.inodos[i].firstblock = i+1; //bloque de metadatos 1 (metadatos)+ numero posicion libre
+	SB.inodos[i].descriptor = i+1; //bloque de metadatos 1 (metadatos)+ numero posicion libre
 	strcpy(SB.inodos[i].filename, fileName); //Nombe del fichero el recibido por parametro
 	SB.inodos[i].filesize = 0; //Tamanyo inicial 0
 	SB.mapinodos[i] = 1; //Posicion del mapa de inodos ocupada
 
-	bwrite(DEVICE_IMAGE, SB.inodos[i].firstblock, (char*) &bufferBlock);
+	//Faltará añadir punturos
+
+	bwrite(DEVICE_IMAGE, SB.inodos[i].descriptor, (char*) &bufferBlock);
 	printf("createFile: Fichero %s creado con exito \n", SB.inodos[i].filename);
 	return 0;
 
@@ -145,8 +148,42 @@ int createFile(char *fileName)
  */
 int removeFile(char *fileName)
 {
-	return -2;
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
+			if(SB.inodos[i].isopen == FOPEN){
+				perror("removeFile: El fichero no puede ser borrado porque está abierto \n");
+				return -2;
+			}
+
+			borrarFichero(i);
+			printf("removeFile: Fichero %s borrado con exito \n", SB.inodos[i].filename);
+			return 0;
+		}
+	}
+	perror("removeFile: El fichero no puede ser borrado porque no existe \n");
+	return -1;
+	//Mirar más errores posibles
 }
+
+void borrarFichero(int posicion){
+
+
+	//Borramos el nombre y los atributos
+	memset(&(SB.inodos[posicion].filename), 0, 32);
+	SB.inodos[posicion].filesize = -1; 
+	SB.inodos[posicion].isopen = -1; 
+	SB.inodos[posicion].crc = -1; 
+	SB.inodos[posicion].descriptor = 0;
+
+	//Marcamos como libre su posición en el mapa de inodos
+	SB.mapinodos[posicion] = 0;
+
+	//Recorremos los bloques que lo forman para borrar su información
+
+
+	SB.inodos[posicion].bloquesEnInodo = 0;
+}
+
 
 /*
  * @brief	Opens an existing file.

@@ -5,3 +5,5 @@
  * @brief 	Headers for the auxiliary functions required by filesystem.c.
  * @date	01/03/2017
  */
+
+void borrarFichero(int posicion);

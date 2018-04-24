@@ -36,7 +36,8 @@ typedef struct{
 	uint32_t filesize; //tamanyo actual del fichero
 	char isopen; //Indica si el fichero esta abierto o cerrado
 	uint16_t crc; //crc16
-	uint16_t firstblock; //primer bloque del fichero, representable con 2 bytes
+	uint16_t descriptor; //primer bloque del fichero, representable con 2 bytes
+	uint16_t bloquesEnInodo; //número de bloques asociados al inodo
 }iNodo;
 
 typedef struct{
