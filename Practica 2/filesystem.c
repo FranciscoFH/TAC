@@ -279,14 +279,14 @@ int closeFile(int fileDescriptor)
 	if(posicion == -1) perror("closeFile: No se ha encontrado el descriptor del fichero\n"); return -1;
 
 	if(SB.inodos[posicion].isopen == FCLOSE){
-				perror("openFile: El archivo ya estaba cerrado \n");
-				return -1;
-			}
-			else{
+		perror("openFile: El archivo ya estaba cerrado \n");
+		return -1;
+	}
+	else{
 				//Cerramos el fichero 
-				SB.inodos[posicion].isopen = FCLOSE;
-				return 0;
-			}
+		SB.inodos[posicion].isopen = FCLOSE;
+		return 0;
+	}
 	
 }
 
@@ -460,21 +460,30 @@ int checkFS(void)
  */
 int checkFile(char *fileName)
 {
-	/*
-
+	//Falta comprobar segun tamaño del fichero que crc usar
+	char* buffer = "";
 	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
 		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
-			//Preguntar que si el archivo ya estaba abierto es un error
+			//Se considera error si se intenta realizar esta funcion con el archivo abierto
 			if(SB.inodos[i].isopen == FOPEN){
 				perror("checkFile: El archivo está abierto \n");
 				return -2;
 			}
 			uint16_t prev_crc = SB.inodos[i].crc;
 
-			uint16_t crc =CRC16(const unsigned char* buffer, unsigned int length, prev_crc);
+			uint16_t crc =CRC16((unsigned char*) buffer, sizeof(&buffer), prev_crc);
+
+			if(prev_crc == crc){
+				printf("checkFile: El archivo ha pasado el control de integridad\n");
+				return 0;
+			}else{
+				printf("checkFile: El no ha pasado el control de integridad\n");
+				return -1;
+			}
 
 		}
 	}	
-	*/
-	return -2;
+	
+
+	return 0;
 }
