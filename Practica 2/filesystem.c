@@ -20,6 +20,18 @@
 char bufferBlock[MAX_BLOCKSIZE];
 superBloque SB;
 
+//Devuelve el primer bloque libre que encuentre
+int reservarBloqueLibre(void){
+	for(int i = 0; i< SB.numbloques; i++){
+		if(SB.blockBitMap[i] == 0){
+			//Asignamos como ocupado al bloque y devolvemos el número de bloque
+			bitmap_setbit(SB.blockBitMap,i,1);
+			return i+1;
+		}
+	}
+	return -1;
+}
+
 int mkFS(long deviceSize)
 {
 	//Primero se comprueba que el tamanyo de disco se encuentre entre los limites permitidos
@@ -29,18 +41,36 @@ int mkFS(long deviceSize)
 	}
 	//Se crea el super bloque con sus valores por defecto
 	SB.numinodos = MAX_FILES;
-	SB.numbloques = deviceSize/MAX_BLOCKSIZE;
-	
+	//FUNCION TECHO DE ESTO
+	SB.numbloques = deviceSize/MAX_BLOCKSIZE;	
 	int i;
 	for(i = 0; i< SB.numinodos; i++){
-		SB.mapinodos[i] = 0; //Se establecen los inodos a libres
+		SB.inodosBitMap[i] = 0; //Se establecen los inodos a libres
 //Se establecen los valores por defecto de los inodos en el mismo bucle
 		SB.inodos[i].filesize = 0;
 		SB.inodos[i].crc = 0;
-		SB.inodos[i].descriptor = 0;
+		SB.inodos[i].bloquePuntero = 0;
 		SB.inodos[i].bloquesEnInodo = 0;
+		SB.inodos[i].punteroLectura = 0;
+		SB.inodos[i].crc = 0;
+		SB.inodos[i].bloquesEnInodo = 0;
+		SB.blockBitMap[i] = 0; //Ponemos todos los bloques a libre
 	}
 
+	//Continuamos iniciando a 0 los bloques 
+	for(int j = i; j < SB.numbloques; j++){
+		SB.blockBitMap[j] = 0;
+	}
+	SB.blockBitMap[0] = 1; //El primer bloque pertenece al superbloque, por lo que lo reservamos
+
+/*
+	//Inicializaremos a cero todas las posiciones de los futuros bloques asociados a un inodo
+	for(int i=0; i<SB.numinodos; i++){
+		for(int j=0; i<SB.numbloques; j++){
+			SB.inodos[i].blocksAsocidosBitMap[j] = 0;
+		}
+	}
+*/
 	unmountFS();
 
 	printf("El Sistema de Ficheros se ha formateado exitosamente \n");
@@ -54,18 +84,15 @@ int mkFS(long deviceSize)
  */
 int mountFS(void)
 {
-	int mount = 0;
 
-	mount = bread(DEVICE_IMAGE, 0, (char*) &SB);
-
-	if(mount == 0){
-		return mount;
+	int mountSB = bread(DEVICE_IMAGE, 0, (char*) &SB);
+	if(mountSB == 0){
+		return 0;
 	}
-	if(mount == -1){
-		perror("mountFS: Error al montar el Sistema de Ficheros");
-
+	else{
+		perror("unmountFS: Error al desmontar el Sistema de Ficheros");
+		return -1;
 	}
-	return mount;
 }
 
 /*
@@ -74,19 +101,22 @@ int mountFS(void)
  */
 int unmountFS(void)
 {
-	int unmount = 0;
-
-	unmount = bwrite(DEVICE_IMAGE, 0, (char*) &SB);
-
-	if(unmount == 0){
-		return unmount;
+	//Primero comprobamos que todos los ficheros estan cerrados.
+	for(int i = 0; i< SB.numinodos; i++){
+		if(SB.inodos[i].isopen == FOPEN){
+			perror("unmountFS: Hay ficheros abiertos");
+			return -1;
+		}
 	}
-	if(unmount == -1){
+
+	int unmountSB = bwrite(DEVICE_IMAGE, 0, (char*) &SB);
+	if(unmountSB == 0){
+		return 0;
+	}
+	else{
 		perror("unmountFS: Error al desmontar el Sistema de Ficheros");
-
+		return -1;
 	}
-	return unmount;
-
 }
 
 /*
@@ -107,7 +137,7 @@ int createFile(char *fileName)
 */
 
 	int i; 
-	//Primero descartamos que el fichero con ese nombre no existe y que esa posicion del mapa de inodos no esta ocupada
+	//Primero descartamos que el fichero con ese nombre no existe
 	for(i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
 		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
 			perror("createFile: Ya existe un fichero con el mismo nombre\n");
@@ -116,27 +146,26 @@ int createFile(char *fileName)
 	}
 
 	for(i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
-		if(SB.mapinodos[i] == 0){ //Si encontramos una posicion del mapa de inodos libre, se sale del bucle
+		if(SB.inodosBitMap[i] == 0){ //Si encontramos una posicion del mapa de inodos libre, se sale del bucle
 			break;
 		}
 	}
+	if(i >= SB.numinodos) perror("createFile: No hay inodos libres\n");
 
-	//Comprobamos que había algún bloque libre
-
-	if(i >= SB.numinodos) perror("createFile: No hay bloques libres\n");
-
-		
-
+	int bloque = reservarBloqueLibre();
+	if(bloque == -1) perror("createFile: No hay bloques libres\n");
+	
 	//Habiendo descartado los errores para poder crear el fichero, se procede a su creacion
 	SB.inodos[i].isopen = FCLOSE; //Se marca el fichero como cerrado
-	SB.inodos[i].descriptor = i+1; //bloque de metadatos 1 (metadatos)+ numero posicion libre
-	strcpy(SB.inodos[i].filename, fileName); //Nombe del fichero el recibido por parametro
-	SB.inodos[i].filesize = 0; //Tamanyo inicial 0
-	SB.mapinodos[i] = 1; //Posicion del mapa de inodos ocupada
+	SB.inodos[i].bloquePuntero = i; //primer bloque asignado al inodo
+	strcpy(SB.inodos[i].filename, fileName); //Nombre del fichero el recibido por parametro
+	SB.inodosBitMap[i] = 1; //Posicion del mapa de inodos ocupada
+	SB.inodos[i].crc = 26897; //Valor correspondiente a un crc de un fichero vacio
+	SB.inodos[i].bloquesEnInodo = 1;
+	SB.inodos[i].blocksAsocidos[0] = i;
 
-	//Faltará añadir punturos
 
-	bwrite(DEVICE_IMAGE, SB.inodos[i].descriptor, (char*) &bufferBlock);
+	bwrite(DEVICE_IMAGE, SB.inodos[i].blocksAsocidos[0], (char*) &bufferBlock);
 	printf("createFile: Fichero %s creado con exito \n", SB.inodos[i].filename);
 	return 0;
 
@@ -148,14 +177,37 @@ int createFile(char *fileName)
  */
 int removeFile(char *fileName)
 {
-	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+	//Busco el fichero, reinicio sus atributos y restauro las posiciones en el imap e iblock
+	for(int i=0; i<SB.numinodos;i++){ 
 		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
 			if(SB.inodos[i].isopen == FOPEN){
 				perror("removeFile: El fichero no puede ser borrado porque está abierto \n");
 				return -2;
 			}
 
-			borrarFichero(i);
+			//Borramos el nombre y los atributos
+			memset(&(SB.inodos[i].filename), 0, 32);
+			SB.inodos[i].filesize = 0; 
+			SB.inodos[i].isopen = 0; 
+			SB.inodos[i].crc = 0; 
+			SB.inodos[i].bloquePuntero = 0;
+			SB.inodos[i].punteroLectura = 0;
+
+
+			//Marcamos como libre su posición en el mapa de inodos
+			SB.inodosBitMap[i] = 0;
+
+			//Recorremos los bloques que lo forman para borrar su información y poner un 0 en el mapa de bits
+			//Creamos un buffer vacio para llenar el fichero con espacios en blanco
+			char * buffer = "";
+			for(int t = 0; t<SB.inodos[i].bloquesEnInodo; t++){
+				bitmap_setbit(SB.blockBitMap,SB.inodos[i].blocksAsocidos[t] - 1,0);
+				//Borramos toda la informacion que halla en los bloques
+				writeFile(SB.inodos[i].blocksAsocidos[t], buffer, SB.inodos[i].filesize);
+			}
+
+			SB.inodos[i].bloquesEnInodo = 0;
+
 			printf("removeFile: Fichero %s borrado con exito \n", SB.inodos[i].filename);
 			return 0;
 		}
@@ -165,25 +217,6 @@ int removeFile(char *fileName)
 	//Mirar más errores posibles
 }
 
-void borrarFichero(int posicion){
-
-
-	//Borramos el nombre y los atributos
-	memset(&(SB.inodos[posicion].filename), 0, 32);
-	SB.inodos[posicion].filesize = -1; 
-	SB.inodos[posicion].isopen = -1; 
-	SB.inodos[posicion].crc = -1; 
-	SB.inodos[posicion].descriptor = 0;
-
-	//Marcamos como libre su posición en el mapa de inodos
-	SB.mapinodos[posicion] = 0;
-
-	//Recorremos los bloques que lo forman para borrar su información
-
-
-	SB.inodos[posicion].bloquesEnInodo = 0;
-}
-
 
 /*
  * @brief	Opens an existing file.
@@ -191,7 +224,30 @@ void borrarFichero(int posicion){
  */
 int openFile(char *fileName)
 {
-	return -2;
+	//Verificamos el estado del fichero
+	int verificacion = checkFile(fileName);
+	if(verificacion == -1) perror("openFile: El fichero esta corrupto \n"); return -2;
+	if(verificacion == -2) perror("openFile: El fichero esta abierto y no se puede verificar \n"); return -2;
+
+	//Buscamos el fichero y lo abrimos.
+
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
+			//Preguntar que si el archivo ya estaba abierto es un error
+			if(SB.inodos[i].isopen == FOPEN){
+				perror("openFile: El archivo ya estaba abierto \n");
+				return -2;
+			}
+			else{
+				//Abrimos el fichero y ponemos su puntero de lectura al principio
+				SB.inodos[i].isopen = FOPEN;
+				SB.inodos[i].punteroLectura = 0;
+				return SB.inodos[i].blocksAsocidos[0];
+			}
+		}
+	}	
+	perror("openFile: El fichero no puede ser abierto porque no existe en el sistema de ficheros \n");
+	return -1;
 }
 
 /*
@@ -200,7 +256,26 @@ int openFile(char *fileName)
  */
 int closeFile(int fileDescriptor)
 {
-	return -1;
+	int posicion = -1;
+	//Comparamos el descriptor de fichero con el recibido por parámetro hasta encontrar el inodo correspondiente
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(SB.inodos[i].blocksAsocidos[0] == fileDescriptor){
+			posicion = i;
+			break;
+		}
+	}
+	if(posicion == -1) perror("closeFile: No se ha encontrado el descriptor del fichero\n"); return -1;
+
+	if(SB.inodos[posicion].isopen == FCLOSE){
+				perror("openFile: El archivo ya estaba cerrado \n");
+				return -1;
+			}
+			else{
+				//Cerramos el fichero 
+				SB.inodos[posicion].isopen = FCLOSE;
+				return 0;
+			}
+	
 }
 
 /*
@@ -209,7 +284,35 @@ int closeFile(int fileDescriptor)
  */
 int readFile(int fileDescriptor, void *buffer, int numBytes)
 {
-	return -1;
+	//Comprobamos los parámetros
+	if(fileDescriptor <= -1) perror("readFile: Descriptor de fichero negativo\n"); return -1;	
+	if(numBytes <= -1) perror("readFile: Número de bytes a leer negativo\n"); return -1;
+	if(numBytes == 0) return 0;
+
+	int posicion = -1;
+	//Comparamos el descriptor de fichero con el recibido por parámetro hasta encontrar el inodo correspondiente
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(SB.inodos[i].blocksAsocidos[0] == fileDescriptor){
+			posicion = i;
+			break;
+		}
+	}
+
+	//Realizamos las comprobaciones necesarias
+
+	if(posicion == -1) perror("readFile: No se ha encontrado el descriptor del fichero\n"); return -1;
+	if(SB.inodos[posicion].isopen == FCLOSE) perror("readFile: El fichero no se puede leer ya que no está abierto\n"); return -1;
+	//Si estamos al final del fichero, ya no podemos leer más
+	if(SB.inodos[posicion].punteroLectura == SB.inodos[posicion].filesize) return 0;
+
+	if(SB.inodos[posicion].punteroLectura + numBytes > SB.inodos[posicion].filesize) {
+		numBytes = SB.inodos[posicion].filesize - SB.inodos[posicion].punteroLectura;
+	}
+	//Miramos donde se encuentra el puntero y vamos recorriendo los bits
+		//bread(DEVICE_IMAGE, SB.inodos[posicion].blocksAsocidos[i], buffer);
+
+	return numBytes;
+
 }
 
 /*
@@ -218,6 +321,35 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
  */
 int writeFile(int fileDescriptor, void *buffer, int numBytes)
 {
+
+		//Comprobamos los parámetros
+	if(fileDescriptor <= -1) perror("readFile: Descriptor de fichero negativo\n"); return -1;	
+	if(numBytes <= -1) perror("readFile: Número de bytes a leer negativo\n"); return -1;
+	if(numBytes == 0) return 0;
+
+	int posicion = -1;
+	//Comparamos el descriptor de fichero con el recibido por parámetro hasta encontrar el inodo correspondiente
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(SB.inodos[i].blocksAsocidos[0] == fileDescriptor){
+			posicion = i;
+			break;
+		}
+	}
+
+	//Realizamos las comprobaciones necesarias
+
+	if(posicion == -1) perror("readFile: No se ha encontrado el descriptor del fichero\n"); return -1;
+	if(SB.inodos[posicion].isopen == FCLOSE) perror("readFile: El fichero no se puede leer ya que no está abierto\n"); return -1;
+	//Si estamos al final del fichero, ya no podemos leer más
+	if(SB.inodos[posicion].punteroLectura == SB.inodos[posicion].filesize) return 0;
+
+	//Duda sobre la extensión de ficheros
+
+	if(SB.inodos[posicion].punteroLectura + numBytes > SB.inodos[posicion].filesize) {
+		numBytes = SB.inodos[posicion].filesize - SB.inodos[posicion].punteroLectura;
+	}
+	//Miramos donde se encuentra el puntero y vamos recorriendo los bits
+		//bread(DEVICE_IMAGE, SB.inodos[posicion].blocksAsocidos[i], buffer);
 	return -1;
 }
 
@@ -228,7 +360,40 @@ int writeFile(int fileDescriptor, void *buffer, int numBytes)
  */
 int lseekFile(int fileDescriptor, long offset, int whence)
 {
+
+	int posicion = -1;
+	//Comparamos el descriptor de fichero con el recibido por parámetro hasta encontrar el inodo correspondiente
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(SB.inodos[i].blocksAsocidos[0] == fileDescriptor){
+			posicion = i;
+			break;
+		}
+	}
+	if(posicion == -1) perror("lseekFile: No se ha encontrado el descriptor del fichero\n"); return -1;
+
+	//Comprobamos los 3 valores posibles del whence
+
+	if( (whence != FS_SEEK_BEGIN) | (whence != FS_SEEK_END) | (whence != FS_SEEK_CUR)) return -1;
+	//BEGIN ponemos el puntero al principio del archivo, END ponemos el puntero al final del archivo. 
+	if (whence == FS_SEEK_BEGIN) {
+		SB.inodos[posicion].punteroLectura = 0;
+		return 0;
+	}
+	if (whence == FS_SEEK_END) {
+		SB.inodos[posicion].punteroLectura = SB.inodos[posicion].filesize;
+		return 0;
+	}
+
+	//Movemos el puntero el valor que tenga offset
+	if (whence == FS_SEEK_CUR) {
+		int final = SB.inodos[posicion].punteroLectura + offset;
+		if ((final < 0) | (final > SB.inodos[posicion].filesize)) return -1;
+		SB.inodos[posicion].punteroLectura = final;
+		return 0;		
+	}
+
 	return -1;
+
 }
 
 /*
@@ -246,5 +411,21 @@ int checkFS(void)
  */
 int checkFile(char *fileName)
 {
+	/*
+
+	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
+		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
+			//Preguntar que si el archivo ya estaba abierto es un error
+			if(SB.inodos[i].isopen == FOPEN){
+				perror("checkFile: El archivo está abierto \n");
+				return -2;
+			}
+			uint16_t prev_crc = SB.inodos[i].crc;
+
+			uint16_t crc =CRC16(const unsigned char* buffer, unsigned int length, prev_crc);
+
+		}
+	}	
+	*/
 	return -2;
 }
