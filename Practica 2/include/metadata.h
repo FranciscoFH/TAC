@@ -20,7 +20,7 @@ static inline void bitmap_setbit(char *bitmap_, int i_, int val_) {
 
 /*CONSTANTES*/
 
-#define MAX_BLOCKSIZE 2048 //Maximo tamanyo del bloque en bytes
+#define BLOCKSIZE 2048 //Tamaño del bloque
 #define MAX_LONGNAME 32 //Longitud maxima del fichero
 #define MAX_FILES 40 //Maximo numero de ficheros
 #define MIN_DEVICE_SIZE 51200 //NUMERO MINIMO DE BYTES DEL DISPOSITIVO
@@ -31,19 +31,19 @@ static inline void bitmap_setbit(char *bitmap_, int i_, int val_) {
 /*ESCTRUCTURAS*/
 typedef struct{
 	char filename[MAX_LONGNAME]; //Longitud maxima 32 caracteres
-	uint32_t filesize; //tamanyo actual del fichero
+	uint32_t filesize; //tamanyo real del fichero
 	char isopen; //Indica si el fichero esta abierto o cerrado
-	uint16_t crc; //crc16
-	uint16_t bloquePuntero; //Indica el bloque en el que se encuentra el puntero
+	uint16_t crc; //Comprobador de integridad
+	uint16_t punteroBloque; //Indica el bloque en el que se encuentra el puntero
 	uint16_t bloquesEnInodo; //número de bloques asociados al inodo
-	uint16_t punteroLectura; //puntero que apunta al lugar del archivo donde nos encontramos
-	uint16_t blocksAsocidos[MAX_FILE_SIZE]; //Número de los bloques asociados
+	uint16_t puntero; //puntero que apunta al lugar del archivo donde nos encontramos
+	uint16_t blocksAsocidos[MAX_FILE_SIZE/BLOCKSIZE]; //Número de los bloques asociados
 }iNodo;
 
 typedef struct{
 	uint8_t numinodos; //Numero de ficheros actualmente
 	char inodosBitMap[MAX_FILES/8]; //Dividimos en 8 porque en cada char nos caben 8 bits que contendran el estado de 8 ficheros. 
-	char blockBitMap[MAX_FILE_SIZE/8]; //Mapa que nos guarda el estado de los bloques
+	char blockBitMap[MAX_DEVICE_SIZE/BLOCKSIZE/8]; //Mapa que nos guarda el estado de los bloques
 	iNodo inodos[MAX_FILES];
 	uint16_t numbloques;
 }superBloque;
