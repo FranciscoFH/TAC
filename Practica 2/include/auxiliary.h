@@ -6,3 +6,4 @@
  * @date	01/03/2017
  */
 int reservarBloqueLibre();
+int reservarINodoLibre();
