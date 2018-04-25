@@ -7,3 +7,5 @@
  */
 int reservarBloqueLibre();
 int reservarINodoLibre();
+int buscarFichero(int fileDescriptor);
+int escribirFichero(int inodo, int puntero, int punteroBloque, int numBytes, int bloquesEnInodo, void *buffer, int bytesEscritos);

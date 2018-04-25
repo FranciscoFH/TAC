@@ -37,20 +37,20 @@ typedef struct{
 	uint16_t punteroBloque; //Indica el bloque en el que se encuentra el puntero
 	uint16_t bloquesEnInodo; //número de bloques asociados al inodo
 	uint16_t puntero; //puntero que apunta al lugar del archivo donde nos encontramos
-	uint16_t blocksAsocidos[MAX_FILE_SIZE/BLOCKSIZE]; //Número de los bloques asociados al inodo
+	uint16_t bloquesAsociados[MAX_FILE_SIZE/BLOCKSIZE]; //Número de los bloques asociados al inodo
 }iNodo;
 
 typedef struct{
 	uint8_t numInodos; //Numero de ficheros reales
 	uint16_t numBloques;  //Numero total de bloques en el disco
-	uint8_t primerBloqueINodo; 
-	uint16_t numBloquesLibres;
+	uint8_t primerBloqueINodo; //Indica el bloque donde se encuentra el primer inodo
+	uint16_t numBloquesLibres;	//Indica el número de bloques libres en el sistema de ficheros
 	char padding;
 }superBloque;
 
 typedef struct{
 	char inodosBitMap[MAX_FILES/8]; //Dividimos en 8 porque en cada char nos caben 8 bits que contendran el estado de 8 ficheros. 
 	char blockBitMap[MAX_DEVICE_SIZE/BLOCKSIZE/8]; //Mapa que nos guarda el estado de los bloques
-}superBloque;
+}mapas;
 
 
