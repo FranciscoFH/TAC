@@ -413,7 +413,7 @@ int checkFS(void)
  */
 int checkFile(char *fileName)
 {
-	
+	//Falta comprobar segun tamaño del fichero que crc usar
 	char* buffer = "";
 	for(int i=0; i<SB.numinodos;i++){ //Desde i hasta numero de inodos
 		if(strcmp(SB.inodos[i].filename, fileName) == 0){ 
@@ -437,5 +437,6 @@ int checkFile(char *fileName)
 		}
 	}	
 	
+
 	return 0;
 }
