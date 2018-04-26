@@ -578,7 +578,7 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 	if(inodo == -1) {
 		perror("lseekFile: No se ha encontrado el descriptor del fichero\n"); 
 		return -1;
-	
+	}
 	//Comprobamos los 3 valores posibles del whence
 
 	if( (whence != FS_SEEK_BEGIN) | (whence != FS_SEEK_END) | (whence != FS_SEEK_CUR)) {
