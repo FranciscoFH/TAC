@@ -94,6 +94,8 @@ int escribirFichero(int inodo, int puntero, int punteroBloque, int numBytes, int
 			bytesEscritos += numBytes;
 			inodos[inodo].punteroBloque = i;
 			inodos[inodo].puntero = puntero;
+			//Una vez hemos acabado con un bloque, lo escribimos en el disco
+			bwrite(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[i-1], (char*) &bufferEscribir);
 			return bytesEscritos;
 		}
 		
@@ -592,7 +594,9 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 		return 0;
 	}
 	if (whence == FS_SEEK_END) {
+		//El bloque en el que estará el puntero será el bloque final
 		inodos[inodo].punteroBloque = inodos[inodo].bloquesAsociados[inodos[inodo].bloquesEnInodo-1];
+		//El resto entre el tamaño del archivo y el bloque nos indica la posición del último byte
 		inodos[inodo].puntero = inodos[inodo].filesize % BLOCK_SIZE;
 		return 0;
 	}
@@ -602,17 +606,25 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 		if(offset == 0) {
 			return 0;
 		}
-
-		//Si es positivo y mayor que el espacio actual, significa que no hay que movernos del bloque. De lo contrario sí
-		int espacioActual = BLOCK_SIZE - inodos[inodo].puntero;
 		//Bytes que quedan en el fichero por leer
 		int quedan = inodos[inodo].filesize - (inodos[inodo].puntero - (BLOCK_SIZE * (inodos[inodo].punteroBloque - 1)));
+
+		int espacioActual;
+		//Si estamos en el último bloque, el espacio actual es la resta del tamaño del fichero al puntero. Sino, lo que queda es la diferencia entre el puntero y el bloque completo
+		if(inodos[inodo].bloquesEnInodo == inodos[inodo].punteroBloque){
+			espacioActual = quedan - inodos[inodo].puntero;
+		}
+		else{
+			espacioActual = BLOCK_SIZE - inodos[inodo].puntero;
+		}
+
 		if(offset >=0){
 			//Comprobamos los bytes que nos quedan por leer para comprobar que no posicionamos el puntero fuera de los límites
 			if(quedan < offset) {
 				perror("lseekFile: offset fuera de los límites\n"); 
 				return -1;
 			}
+			//Si es positivo y mayor que el espacio actual, significa que no hay que movernos del bloque. De lo contrario sí
 			if (espacioActual >= offset){
 				inodos[inodo].puntero += offset;
 				return 0;	
@@ -636,6 +648,7 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 				perror("lseekFile: offset fuera de los límites\n"); 
 				return -1;
 			}
+			//Si el espacio actual es positivo signfica que no debemos cambiar de bloque ya que podemos retroceder el offset sin problemas
 			espacioActual = inodos[inodo].puntero + offset;
 			if(espacioActual >= 0){
 				inodos[inodo].puntero += offset;
@@ -643,7 +656,8 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 			}	
 			else{
 				//Leemos los bytes que habían en ese fichero y retrocedemos al anterior. Añadiendo un 1 hacemos como que el puntero está al final del bloque anterior
-				offset -= espacioActual+1;
+				offset -= inodos[inodo].puntero+1;
+				//Vamos reduciendo bloque a bloque para situar el puntero más rapido. En el momento en que el offset sea menor, hemos acabado
 				while(BLOCK_SIZE <= offset){
 					offset -= BLOCK_SIZE;
 					inodos[inodo].punteroBloque--;
