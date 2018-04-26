@@ -25,7 +25,9 @@ Si no encuentra nada significa que no hay bloques libres, por lo que devuelve un
 */
 int reservarBloqueLibre(void){
 	//Antes de nada comprobamos que quedan bloques libres
-	if(SB.numBloquesLibres == 0) return -1;
+	if(SB.numBloquesLibres == 0) {
+		return -1;
+	}
 	int biteLibre;
 	for(int i = 0; i< SB.numBloques; i++){
 			biteLibre = bitmap_getbit(mapa.blockBitMap,i);
@@ -168,14 +170,20 @@ int mountFS(void)
 
 	//Accedemos a disco y leemos el super bloque
 	int mountSB = bread(DEVICE_IMAGE, 1, (char*) &SB);
-	if(mountSB == -1) perror("unmountFS: Error al montar el Sistema de Ficheros"); return -1;
+	if(mountSB == -1){
+		perror("unmountFS: Error al montar el Sistema de Ficheros"); 
+		return -1;
+	}
 
 	/* Ahora procedemos a escribir en disco todos los inodos. Cada inodo ocupa un bloque y empezamos desde el 2 ya que el 1 es del superbloque
 	   Además, vamos realizando las compobaciones de que se están escribiendo bien
 	*/
 	for(int i=2; i <= SB.numInodos+1; i++){
 		int mountSB = bread(DEVICE_IMAGE, i, (char*) &inodos[i-2]);
-		if(mountSB == -1) perror("unmountFS: Error al montar el Sistema de Ficheros"); return -1; 
+		if(mountSB == -1){
+			perror("unmountFS: Error al montar el Sistema de Ficheros"); 
+			return -1; 
+		}
 	}
 
 	printf("mountFile: Montaje del dispositivo realizado correctamente \n");
@@ -205,16 +213,24 @@ int unmountFS(void)
 	}
 	//Escribimos en disco las estructuras y comprobamos que se han escrito correctamente
 	int unmountSB = bwrite(DEVICE_IMAGE, 1, (char*) &SB);
-	if(unmountSB == -1) perror("unmountFS: Error al desmontar el Sistema de Ficheros"); return -1;
+	if(unmountSB == -1){
+		perror("unmountFS: Error al desmontar el Sistema de Ficheros"); 
+		return -1;
+	}
 	unmountSB = bwrite(DEVICE_IMAGE, 1, (char*) &mapa);
-	if(unmountSB == -1) perror("unmountFS: Error al desmontar el Sistema de Ficheros"); return -1;
-
+	if(unmountSB == -1){
+		perror("unmountFS: Error al desmontar el Sistema de Ficheros"); 
+		return -1;
+	}
 	/* Ahora procedemos a escribir en disco todos los inodos. Cada inodo ocupa un bloque y empezamos desde el 2 ya que el 1 es del superbloque
 	   Además, vamos realizando las compobaciones de que se están escribiendo bien
 	*/
 	for(int i=2; i <= SB.numInodos+1; i++){
 		unmountSB = bwrite(DEVICE_IMAGE, i, (char*) &inodos[i-2]);
-		if(unmountSB == -1) perror("unmountFS: Error al desmontar el Sistema de Ficheros"); return -1; 
+		if(unmountSB == -1){
+		perror("unmountFS: Error al desmontar el Sistema de Ficheros"); 
+		return -1;
+	}
 	}
 
 	printf("unmountFile: Desmonte del dispositivo realizado correctamente \n");
@@ -249,12 +265,18 @@ int createFile(char *fileName)
 	//Resersavamos el primer inodo libre que encontremos. Nos devuelve la posición del primer inodo libre 
 
 	int inodo = reservarInodoLibre();
-	if(inodo == -1) perror("createFile: No hay inodos libres\n");
+	if(inodo == -1) {
+		perror("createFile: No hay inodos libres\n");
+		return -1;
+	}
 
 	//Resersavamos el primer bloque libre que encontremos. Nos devuelve la posición del primer bloque libre
 
 	int bloque = reservarBloqueLibre();
-	if(bloque == -1) perror("createFile: No hay bloques libres\n");
+	if(bloque == -1) {
+		perror("createFile: No hay bloques libres\n");
+		return -1;
+	}
 	
 	//Habiendo descartado los errores para poder crear el fichero, se procede a su inicialización
 	inodos[inodo].isopen = FCLOSE; //Se marca el fichero como cerrado
@@ -323,9 +345,14 @@ int openFile(char *fileName)
 {
 	//Verificamos el estado del fichero
 	int verificacion = checkFile(fileName);
-	if(verificacion == -1) perror("openFile: El fichero esta corrupto \n"); return -2;
-	if(verificacion == -2) perror("openFile: El fichero esta abierto y no se puede verificar \n"); return -2;
-
+	if(verificacion == -1) {
+		perror("openFile: El fichero esta corrupto \n"); 
+		return -2;
+	}
+	if(verificacion == -2) {
+		perror("openFile: El fichero esta abierto y no se puede verificar \n"); 
+		return -2;
+	}
 	//Buscamos el fichero y lo abrimos.
 
 	for(int i=0; i<SB.numInodos;i++){ 
@@ -356,8 +383,10 @@ int closeFile(int fileDescriptor)
 {
 	//Buscamos el inodo correspondiente a ese descriptor
 	int inodo = buscarFichero(fileDescriptor);
-	if(inodo == -1) perror("closeFile: No se ha encontrado el descriptor del fichero\n"); return -1;
-
+	if(inodo == -1) {
+		perror("closeFile: No se ha encontrado el descriptor del fichero\n"); 
+		return -1;
+	}
 	//Comprobamos si el archivo ya estaba cerrado
 	if(inodos[inodo].isopen == FCLOSE){
 		perror("openFile: El archivo ya estaba cerrado \n");
@@ -380,17 +409,30 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 	//Variable que va a llevar la cuenta de los bytes leidos reales
 	int bytesLeidos = 0;
 	//Comprobamos los parámetros
-	if(fileDescriptor <= -1) perror("readFile: Descriptor de fichero negativo\n"); return -1;	
-	if(numBytes <= -1) perror("readFile: Número de bytes a leer negativo\n"); return -1;
-	if(numBytes == 0) return 0;
-
+	if(fileDescriptor <= -1) {
+		perror("readFile: Descriptor de fichero negativo\n"); 
+		return -1;	
+	}
+	if(numBytes <= -1) {
+		perror("readFile: Número de bytes a leer negativo\n"); 
+		return -1;
+	}
+	if(numBytes == 0) {
+		return 0;
+	}
 	//Buscamos el inodo correspondiente
 	int inodo = buscarFichero(fileDescriptor);
 
 	//Realizamos las comprobaciones necesarias
 
-	if(inodo == -1) perror("readFile: No se ha encontrado el descriptor del fichero\n"); return -1;
-	if(inodos[inodo].isopen == FCLOSE) perror("readFile: El fichero no se puede leer ya que no está abierto\n"); return -1;
+	if(inodo == -1) {
+		perror("readFile: No se ha encontrado el descriptor del fichero\n"); 
+		return -1;
+	}
+	if(inodos[inodo].isopen == FCLOSE){
+		perror("readFile: El fichero no se puede leer ya que no está abierto\n"); 
+		return -1;
+	}
 
 	//Guardamos los atributos que vamos a necesitar
 	uint16_t punteroBloque = inodos[inodo].punteroBloque; //Bloque en el que se encuentra el puntero
@@ -400,8 +442,9 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 
 	//Si estamos en el ultimo bloque del fichero, y el puntero está al final
 	int posicionFinal = inodos[inodo].filesize % BLOCK_SIZE;
-	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) return 0;
-
+	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) {
+		return 0;
+	}
 	//Creamos un buffer donde guardaremos el bloque traido de disco
 	char *bufferLeer[BLOCKSIZE];
 
@@ -413,6 +456,8 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 		bread(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[i-1], *bufferLeer);
 		//Guardamos los bytes que podemos leer en ese fichero. Si el puntero esta en el byte 50 y el bloque es de 100, solo podremos leer 50
 		bytesPosibleBloque = BLOCKSIZE - puntero;
+		//Si estamos en el último bloque, solo podemos leer hasta el final del fichero y no hasta el final del bloque
+		if(i == bloquesEnInodo) bytesPosibleBloque = posicionFinal - puntero;
 		//Si entramos aquí signfica que hemos vamos a poder leer todos los bytes
 		if(bytesPosibleBloque >= numBytes){
 			memcpy(buffer,bufferLeer + puntero ,numBytes);
@@ -436,9 +481,9 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 		punteroBloque++;
 
 	}
-
+	//Si llegamos aquí es que nos poden leer más bytes de los que tenemos
 	inodos[inodo].punteroBloque = punteroBloque; 
-	inodos[inodo].puntero = BLOCK_SIZE; //Ponemos el puntero al final ya que hemos leido hasta el final del fichero
+	inodos[inodo].puntero = posicionFinal; //Ponemos el puntero al final ya que hemos leido hasta el final del fichero
 	return bytesLeidos;
 
 }
@@ -451,16 +496,30 @@ int writeFile(int fileDescriptor, void *buffer, int numBytes)
 {
 	int bytesEscritos = 0;
 	//Comprobamos los parámetros
-	if(fileDescriptor <= -1) perror("writeFile: Descriptor de fichero negativo\n"); return -1;	
-	if(numBytes <= -1) perror("writeFile: Número de bytes a escribir negativo\n"); return -1;
-	if(numBytes == 0) return 0;
+	if(fileDescriptor <= -1) {
+		perror("writeFile: Descriptor de fichero negativo\n"); 
+		return -1;	
+	}
+	if(numBytes <= -1) {
+		perror("writeFile: Número de bytes a escribir negativo\n"); 
+		return -1;
+	}
+	if(numBytes == 0) {
+		return 0;
+	}
 
 	int inodo = buscarFichero(fileDescriptor);
 
 	//Realizamos las comprobaciones necesarias
 
-	if(inodo == -1) perror("writeFile: No se ha encontrado el descriptor del fichero\n"); return -1;
-	if(inodos[inodo].isopen == FCLOSE) perror("writeFile: El fichero no se puede escribir ya que no está abierto\n"); return -1;
+	if(inodo == -1) {
+		perror("writeFile: No se ha encontrado el descriptor del fichero\n"); 
+		return -1;
+	}
+	if(inodos[inodo].isopen == FCLOSE) {
+		perror("writeFile: El fichero no se puede escribir ya que no está abierto\n"); 
+		return -1;
+	}
 
 	uint16_t punteroBloque = inodos[inodo].punteroBloque; //Bloque en el que se encuentra el puntero
 	uint16_t bloquesEnInodo = inodos[inodo].bloquesEnInodo; //Numero de bloques que tiene el inodo
@@ -469,27 +528,31 @@ int writeFile(int fileDescriptor, void *buffer, int numBytes)
 
 	//Si estamos en el ultimo bloque del fichero, y el puntero está al final
 	int posicionFinal = inodos[inodo].filesize % BLOCK_SIZE;
-	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) return 0;
-
+	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) {
+		return 0;
+	}
 	//Llamamos a la funcion escribir fichero la cual nos va guardando en el disco cada vez que terminemos de escribir en un bloque
+	//Nos devuelve los bytesEscritos reales en el buffer
 	bytesEscritos = escribirFichero(inodo, puntero, punteroBloque, numBytes, bloquesEnInodo, buffer, bytesEscritos);
 
 	//Si se cumple esta condición es que hemos escrito todos los bytes sin necesidar de aumentar el tamaño
-	if(bytesEscritos == numBytes) return bytesEscritos;
-
+	if(bytesEscritos == numBytes) {
+		return bytesEscritos;
+	}
 	//Si llegamos aquí significa que hay mas bytes por escribir pero no tenemos más bloques asignados, por lo que tenemos que asignar más.
-
 
 	int bloque;
 
-	//Vamos a realizar un buble que no pare hasta que añamos escrito todos los bytes,hasta que no queden mas bloques por asignar o hasta que el fichero no acepte más bloques
+	//Vamos a realizar un buble que no pare hasta que hayamos escrito todos los bytes,hasta que no queden mas bloques por asignar o hasta que el fichero no acepte más bloques
 	while((SB.numBloquesLibres != 0) | (inodos[inodo].bloquesEnInodo <= MAX_FILE_SIZE/BLOCK_SIZE)){ 
 		bloque = reservarBloqueLibre();
 		bloquesEnInodo ++;
 		inodos[inodo].bloquesAsociados[bloquesEnInodo-1] = bloque;
 		numBytes -= bytesEscritos;
 		bytesEscritos = escribirFichero(inodo, 0, bloquesEnInodo, numBytes, bloquesEnInodo, buffer, bytesEscritos);
-		if(bytesEscritos == numBytes) return bytesEscritos;
+		if(bytesEscritos == numBytes) {
+			return bytesEscritos;
+		}
 	}
 	return bytesEscritos;
 }
@@ -514,7 +577,9 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 
 	//Comprobamos los 3 valores posibles del whence
 
-	if( (whence != FS_SEEK_BEGIN) | (whence != FS_SEEK_END) | (whence != FS_SEEK_CUR)) return -1;
+	if( (whence != FS_SEEK_BEGIN) | (whence != FS_SEEK_END) | (whence != FS_SEEK_CUR)) {
+		return -1;
+	}
 	//BEGIN ponemos el puntero al principio del archivo, END ponemos el puntero al final del archivo. 
 	//Hay que modificar el atributo puntero a Bloque también.
 	if (whence == FS_SEEK_BEGIN) {
@@ -530,8 +595,9 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 
 	//Movemos el puntero el valor que tenga offset
 	if (whence == FS_SEEK_CUR) {
-		if(offset == 0) return 0;
-
+		if(offset == 0) {
+			return 0;
+		}
 
 		//Si es positivo y mayor que el espacio actual, significa que no hay que movernos del bloque. De lo contrario sí
 		int espacioActual = BLOCK_SIZE - inodos[posicion].puntero;
@@ -539,7 +605,10 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 		int quedan = inodos[posicion].filesize - (inodos[posicion].puntero - (BLOCK_SIZE * (inodos[posicion].punteroBloque - 1)));
 		if(offset >=0){
 			//Comprobamos los bytes que nos quedan por leer para comprobar que no posicionamos el puntero fuera de los límites
-			if(quedan < offset) perror("lseekFile: offset fuera de los límites\n"); return -1;
+			if(quedan < offset) {
+				perror("lseekFile: offset fuera de los límites\n"); 
+				return -1;
+			}
 			if (espacioActual >= offset){
 				inodos[posicion].puntero += offset;
 				return 0;	
@@ -559,7 +628,10 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 		else{
 			//Comprobamos los bytes que hemos leido para comprobar que no posicionamos el puntero fuera de los límites
 			int leido = inodos[posicion].filesize - quedan;
-			if(leido < offset) perror("lseekFile: offset fuera de los límites\n"); return -1;
+			if(leido < offset) {
+				perror("lseekFile: offset fuera de los límites\n"); 
+				return -1;
+			}
 			espacioActual = inodos[posicion].puntero + offset;
 			if(espacioActual >= 0){
 				inodos[posicion].puntero += offset;
