@@ -125,7 +125,7 @@ int mkFS(long deviceSize)
 	}
 	//Vamos a inicializar los atributos del super bloque
 	SB.numInodos = MAX_FILES;										//El número de inodos será el máximo de números de ficheros
-	SB.numBloques = (deviceSize + (BLOCK_SIZE - 1))/ BLOCK_SIZE -1;	//Calculamos el numero de bloques reales del disco y realizamos la función suelo
+	SB.numBloques = (deviceSize + (BLOCK_SIZE - 1))/ BLOCK_SIZE -1;	//Calculamos el numero de bloques reales del disco y realizamos la función techo
 	SB.primerBloqueINodo = 2;										//El primer bloque contiene el superBloque y los mapas
 	SB.numBloquesLibres = SB.numBloques;							//Al principio, todos los bloques están libres
 		
@@ -166,7 +166,7 @@ int mkFS(long deviceSize)
 int mountFS(void)
 {
 
-
+	//Accedemos a disco y leemos el super bloque
 	int mountSB = bread(DEVICE_IMAGE, 1, (char*) &SB);
 	if(mountSB == -1) perror("unmountFS: Error al montar el Sistema de Ficheros"); return -1;
 
@@ -203,6 +203,7 @@ int unmountFS(void)
 		perror("mkFS: El superBloque y los mapas no están en el primero");
 		return -1;
 	}
+	//Escribimos en disco las estructuras y comprobamos que se han escrito correctamente
 	int unmountSB = bwrite(DEVICE_IMAGE, 1, (char*) &SB);
 	if(unmountSB == -1) perror("unmountFS: Error al desmontar el Sistema de Ficheros"); return -1;
 	unmountSB = bwrite(DEVICE_IMAGE, 1, (char*) &mapa);
@@ -250,20 +251,20 @@ int createFile(char *fileName)
 	int inodo = reservarInodoLibre();
 	if(inodo == -1) perror("createFile: No hay inodos libres\n");
 
-	//Resersavamos el primer inodo libre que encontremos. Nos devuelve la posición del primer bloque libre
+	//Resersavamos el primer bloque libre que encontremos. Nos devuelve la posición del primer bloque libre
 
 	int bloque = reservarBloqueLibre();
 	if(bloque == -1) perror("createFile: No hay bloques libres\n");
 	
-	//Habiendo descartado los errores para poder crear el fichero, se procede a su creacion
+	//Habiendo descartado los errores para poder crear el fichero, se procede a su inicialización
 	inodos[inodo].isopen = FCLOSE; //Se marca el fichero como cerrado
 	inodos[inodo].punteroBloque = bloque; //el puntero se encuentra en el primer bloque
 	strcpy(inodos[inodo].filename, fileName); //Nombre del fichero el recibido por parametro
 	inodos[inodo].crc = 26897; //Valor correspondiente a un crc de un fichero vacio
-	inodos[inodo].bloquesEnInodo = 1;
-	inodos[inodo].bloquesAsociados[0] = bloque;	//El bloque de la posición 0 funcionará como descriptor de fichero
+	inodos[inodo].bloquesEnInodo = 1; //Al crearlo, solo está formado por 1 bloque
+	inodos[inodo].bloquesAsociados[0] = bloque;	//Asociamos el bloque al inodo. El bloque de la posición 0 funcionará como descriptor de fichero
 
-	//Escribimos en el disco el primer bloque de datos
+	//Escribimos en el disco el nuevo fichero creado
 	bwrite(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[0], (char*) &bufferBlock);
 	printf("createFile: Fichero %s creado con exito \n", inodos[inodo].filename);
 	return 0;
@@ -353,6 +354,7 @@ int openFile(char *fileName)
  */
 int closeFile(int fileDescriptor)
 {
+	//Buscamos el inodo correspondiente a ese descriptor
 	int inodo = buscarFichero(fileDescriptor);
 	if(inodo == -1) perror("closeFile: No se ha encontrado el descriptor del fichero\n"); return -1;
 
@@ -375,12 +377,14 @@ int closeFile(int fileDescriptor)
  */
 int readFile(int fileDescriptor, void *buffer, int numBytes)
 {
+	//Variable que va a llevar la cuenta de los bytes leidos reales
 	int bytesLeidos = 0;
 	//Comprobamos los parámetros
 	if(fileDescriptor <= -1) perror("readFile: Descriptor de fichero negativo\n"); return -1;	
 	if(numBytes <= -1) perror("readFile: Número de bytes a leer negativo\n"); return -1;
 	if(numBytes == 0) return 0;
 
+	//Buscamos el inodo correspondiente
 	int inodo = buscarFichero(fileDescriptor);
 
 	//Realizamos las comprobaciones necesarias
@@ -388,18 +392,20 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 	if(inodo == -1) perror("readFile: No se ha encontrado el descriptor del fichero\n"); return -1;
 	if(inodos[inodo].isopen == FCLOSE) perror("readFile: El fichero no se puede leer ya que no está abierto\n"); return -1;
 
+	//Guardamos los atributos que vamos a necesitar
 	uint16_t punteroBloque = inodos[inodo].punteroBloque; //Bloque en el que se encuentra el puntero
 	uint16_t bloquesEnInodo = inodos[inodo].bloquesEnInodo; //Numero de bloques que tiene el inodo
 	uint16_t puntero = inodos[inodo].puntero; //Posición del puntero
 	uint16_t bloquesEnInodoRestantes = bloquesEnInodo - punteroBloque + 1; //Calculamos los bloques que todavia no hemos leido
 
-	//Si estamos en el ultimo bloque del fichero, y el puntero está l final
-	if((bloquesEnInodoRestantes == 1) && (puntero ==  inodos[inodo].filesize)) return 0;
+	//Si estamos en el ultimo bloque del fichero, y el puntero está al final
+	int posicionFinal = inodos[inodo].filesize % BLOCK_SIZE;
+	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) return 0;
 
-	//Creamos un buffer que va a agregar todos los bloques que quedan por leer
-
+	//Creamos un buffer donde guardaremos el bloque traido de disco
 	char *bufferLeer[BLOCKSIZE];
 
+	//Variable que guarda los bytes que podemos copiar de un bloque
 	int bytesPosibleBloque;
 
 	for(int i = punteroBloque; i <= bloquesEnInodo ; i++){
@@ -418,7 +424,7 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 			return bytesLeidos;
 		}
 		
-		//Escribimos en el buffer todos los bytes del bloque restantes
+		//Escribimos en el buffer todos los bytes del bloque restantes desde el puntero 
 		memcpy(buffer,bufferLeer + puntero ,bytesPosibleBloque);
 		//Vamos actualizando el puntero y los contadores
 		numBytes -= bytesPosibleBloque;
@@ -462,7 +468,8 @@ int writeFile(int fileDescriptor, void *buffer, int numBytes)
 	uint16_t bloquesEnInodoRestantes = bloquesEnInodo - punteroBloque + 1; //Calculamos los bloques que todavia no hemos leido
 
 	//Si estamos en el ultimo bloque del fichero, y el puntero está al final
-	if((bloquesEnInodoRestantes == 1) && (puntero ==  inodos[inodo].filesize)) return 0;
+	int posicionFinal = inodos[inodo].filesize % BLOCK_SIZE;
+	if((bloquesEnInodoRestantes == 1) && (puntero ==  posicionFinal)) return 0;
 
 	//Llamamos a la funcion escribir fichero la cual nos va guardando en el disco cada vez que terminemos de escribir en un bloque
 	bytesEscritos = escribirFichero(inodo, puntero, punteroBloque, numBytes, bloquesEnInodo, buffer, bytesEscritos);
@@ -517,7 +524,7 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 	}
 	if (whence == FS_SEEK_END) {
 		inodos[posicion].punteroBloque = inodos[posicion].bloquesAsociados[inodos[posicion].bloquesEnInodo-1];
-		inodos[posicion].puntero %= inodos[posicion].filesize / BLOCK_SIZE;
+		inodos[posicion].puntero = inodos[posicion].filesize % BLOCK_SIZE;
 		return 0;
 	}
 
