@@ -79,9 +79,9 @@ int escribirFichero(int inodo, int puntero, int punteroBloque, int numBytes, int
 
 	int bytesPosibleBloque;
 
-	for(punteroBloque; punteroBloque <= bloquesEnInodo ; punteroBloque++){
+	for(int i = punteroBloque; i <= bloquesEnInodo ; i++){
 		//Nos traemos el bloque en el que tenemos que escribir
-		bread(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[punteroBloque-1], bufferEscribir);
+		bread(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[i-1], *bufferEscribir);
 		//Guardamos los bytes que podemos escribir en ese fichero. Si el puntero esta en el byte 50 y el bloque es de 100, solo podremos escribir 50
 		bytesPosibleBloque = BLOCKSIZE - puntero;
 		//Si entramos aquí signfica que hemos vamos a poder escribir todos los bytes
@@ -90,7 +90,7 @@ int escribirFichero(int inodo, int puntero, int punteroBloque, int numBytes, int
 			//Vamos reduciendo los bytes que nos quedan por escribir y aumentando el puntero
 			puntero += numBytes;
 			bytesEscritos += numBytes;
-			inodos[inodo].punteroBloque = punteroBloque;
+			inodos[inodo].punteroBloque = i;
 			inodos[inodo].puntero = puntero;
 			return bytesEscritos;
 		}
@@ -102,9 +102,10 @@ int escribirFichero(int inodo, int puntero, int punteroBloque, int numBytes, int
 		puntero += bytesPosibleBloque;
 		bytesEscritos += bytesPosibleBloque;
 		//Una vez hemos acabado con un bloque, lo escribimos en el disco
-		bwrite(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[punteroBloque-1], (char*) &bufferEscribir);
+		bwrite(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[i-1], (char*) &bufferEscribir);
 		//Acabamos de escribir un bloque y ponemos el puntero al inicio del siguiente
 		puntero = 0;
+		punteroBloque++;
 
 	}
 	return bytesEscritos;
@@ -401,9 +402,9 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 
 	int bytesPosibleBloque;
 
-	for(punteroBloque; punteroBloque <= bloquesEnInodo ; punteroBloque++){
+	for(int i = punteroBloque; i <= bloquesEnInodo ; i++){
 		//Nos traemos el bloque que vamos a leer al bufferLeer
-		bread(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[punteroBloque-1], bufferLeer);
+		bread(DEVICE_IMAGE, inodos[inodo].bloquesAsociados[i-1], *bufferLeer);
 		//Guardamos los bytes que podemos leer en ese fichero. Si el puntero esta en el byte 50 y el bloque es de 100, solo podremos leer 50
 		bytesPosibleBloque = BLOCKSIZE - puntero;
 		//Si entramos aquí signfica que hemos vamos a poder leer todos los bytes
@@ -412,7 +413,7 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 			//Vamos reduciendo los bytes que nos quedan por leer y aumentando el puntero
 			puntero += numBytes;
 			bytesLeidos += numBytes;
-			inodos[inodo].punteroBloque = punteroBloque;
+			inodos[inodo].punteroBloque = i;
 			inodos[inodo].puntero = puntero;
 			return bytesLeidos;
 		}
@@ -426,10 +427,11 @@ int readFile(int fileDescriptor, void *buffer, int numBytes)
 
 		//Acabamos de leer un bloque y ponemos el puntero al inicio del siguiente
 		puntero = 0;
+		punteroBloque++;
 
 	}
 
-	inodos[inodo].punteroBloque = punteroBloque - 1; //-1 ya que se ha salido del bucle porque no habia más bloques
+	inodos[inodo].punteroBloque = punteroBloque; 
 	inodos[inodo].puntero = BLOCK_SIZE; //Ponemos el puntero al final ya que hemos leido hasta el final del fichero
 	return bytesLeidos;
 
@@ -587,8 +589,10 @@ int checkFS(void)
  * @brief 	Verifies the integrity of a file.
  * @return 	0 if the file is correct, -1 if the file is corrupted, -2 in case of error.
  */
-int checkFile(char *fileName)
-{
+
+
+int checkFile(char *fileName){
+/*
 	//Falta comprobar segun tamaño del fichero que crc usar
 	char* buffer = "";
 	for(int i=0; i<SB.numInodos;i++){ //Desde i hasta numero de inodos
@@ -614,5 +618,6 @@ int checkFile(char *fileName)
 	}	
 	
 
+*/
 	return 0;
 }
