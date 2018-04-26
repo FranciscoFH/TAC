@@ -473,8 +473,8 @@ int writeFile(int fileDescriptor, void *buffer, int numBytes)
 
 	int bloque;
 
-	//Vamos a realizar un buble que no pare hasta que añamos escrito todos los bytes o hasta que no queden mas bloques por asignar
-	while(SB.numBloquesLibres != 0){ 
+	//Vamos a realizar un buble que no pare hasta que añamos escrito todos los bytes,hasta que no queden mas bloques por asignar o hasta que el fichero no acepte más bloques
+	while((SB.numBloquesLibres != 0) | (inodos[inodo].bloquesEnInodo <= MAX_FILE_SIZE/BLOCK_SIZE)){ 
 		bloque = reservarBloqueLibre();
 		bloquesEnInodo ++;
 		inodos[inodo].bloquesAsociados[bloquesEnInodo-1] = bloque;
@@ -507,24 +507,70 @@ int lseekFile(int fileDescriptor, long offset, int whence)
 
 	if( (whence != FS_SEEK_BEGIN) | (whence != FS_SEEK_END) | (whence != FS_SEEK_CUR)) return -1;
 	//BEGIN ponemos el puntero al principio del archivo, END ponemos el puntero al final del archivo. 
+	//Hay que modificar el atributo puntero a Bloque también.
 	if (whence == FS_SEEK_BEGIN) {
+		inodos[posicion].punteroBloque = inodos[posicion].bloquesAsociados[0];
 		inodos[posicion].puntero = 0;
 		return 0;
 	}
 	if (whence == FS_SEEK_END) {
-		inodos[posicion].puntero = inodos[posicion].filesize;
+		inodos[posicion].punteroBloque = inodos[posicion].bloquesAsociados[inodos[posicion].bloquesEnInodo-1];
+		inodos[posicion].puntero %= inodos[posicion].filesize / BLOCK_SIZE;
 		return 0;
 	}
 
 	//Movemos el puntero el valor que tenga offset
 	if (whence == FS_SEEK_CUR) {
-		int final = inodos[posicion].puntero + offset;
-		if ((final < 0) | (final > inodos[posicion].filesize)) return -1;
-		inodos[posicion].puntero = final;
-		return 0;		
-	}
+		if(offset == 0) return 0;
 
-	return -1;
+
+		//Si es positivo y mayor que el espacio actual, significa que no hay que movernos del bloque. De lo contrario sí
+		int espacioActual = BLOCK_SIZE - inodos[posicion].puntero;
+		//Bytes que quedan en el fichero por leer
+		int quedan = inodos[posicion].filesize - (inodos[posicion].puntero - (BLOCK_SIZE * (inodos[posicion].punteroBloque - 1)));
+		if(offset >=0){
+			//Comprobamos los bytes que nos quedan por leer para comprobar que no posicionamos el puntero fuera de los límites
+			if(quedan < offset) perror("lseekFile: offset fuera de los límites\n"); return -1;
+			if (espacioActual >= offset){
+				inodos[posicion].puntero += offset;
+				return 0;	
+			}
+			//Significa que tenemos que avanzar 1 o más bloques
+			else{
+				offset -= espacioActual+1;
+				while(BLOCK_SIZE <= offset){
+					offset -= BLOCK_SIZE;
+					inodos[posicion].punteroBloque++;
+				}
+				inodos[posicion].puntero = offset;
+				return 0;
+			}
+		}
+		//Si es negativo pero el puntero es mayor, significa que seguimos en el mismo bloque. Sino, hay que cambiarlo
+		else{
+			//Comprobamos los bytes que hemos leido para comprobar que no posicionamos el puntero fuera de los límites
+			int leido = inodos[posicion].filesize - quedan;
+			if(leido < offset) perror("lseekFile: offset fuera de los límites\n"); return -1;
+			espacioActual = inodos[posicion].puntero + offset;
+			if(espacioActual >= 0){
+				inodos[posicion].puntero += offset;
+				return 0;	
+			}	
+			else{
+				//Leemos los bytes que habían en ese fichero y retrocedemos al anterior. Añadiendo un 1 hacemos como que el puntero está al final del bloque anterior
+				offset -= espacioActual+1;
+				while(BLOCK_SIZE <= offset){
+					offset -= BLOCK_SIZE;
+					inodos[posicion].punteroBloque--;
+				}
+				inodos[posicion].puntero = BLOCK_SIZE - offset;
+				return 0;
+			}
+
+
+		}
+
+	}
 
 }
 
