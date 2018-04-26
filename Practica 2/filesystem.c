@@ -30,12 +30,12 @@ int reservarBloqueLibre(void){
 	}
 	int biteLibre;
 	for(int i = 0; i< SB.numBloques; i++){
-			biteLibre = bitmap_getbit(mapa.blockBitMap,i);
-			if(biteLibre == 0){
-				bitmap_setbit(mapa.blockBitMap,i,1);
-				SB.numBloquesLibres --;
-				return i+1;
-			}	
+		biteLibre = bitmap_getbit(mapa.blockBitMap,i);
+		if(biteLibre == 0){
+			bitmap_setbit(mapa.blockBitMap,i,1);
+			SB.numBloquesLibres --;
+			return i+1;
+		}	
 	}
 	return -1;
 }
@@ -48,11 +48,11 @@ Si no encuentra nada significa que no hay inodos libres, por lo que devuelve un 
 int reservarInodoLibre(void){
 	int inodoLibre;
 	for(int i = 0; i< SB.numInodos; i++){
-			inodoLibre = bitmap_getbit(mapa.inodosBitMap,i);
-			if(inodoLibre == 0){
-				bitmap_setbit(mapa.inodosBitMap,i,1);
-				return i+1;
-			}	
+		inodoLibre = bitmap_getbit(mapa.inodosBitMap,i);
+		if(inodoLibre == 0){
+			bitmap_setbit(mapa.inodosBitMap,i,1);
+			return i+1;
+		}	
 	}
 	return -1;
 }
@@ -132,7 +132,7 @@ int mkFS(long deviceSize)
 	SB.numBloques = (deviceSize + (BLOCK_SIZE - 1))/ BLOCK_SIZE -1;	//Calculamos el numero de bloques reales del disco y realizamos la función techo
 	SB.primerBloqueINodo = 2;										//El primer bloque contiene el superBloque y los mapas
 	SB.numBloquesLibres = SB.numBloques;							//Al principio, todos los bloques están libres
-		
+
 	/*
 	Inicializamos los atributos de la estructura inodos. También metemos el mapa de bloques para ahorrar tiempo
 	No inicializamos bloquesAsociados para no perder tiempo, ya que tenemos 'bloquesEnINodo' que nos indica los valores útiles
@@ -230,9 +230,9 @@ int unmountFS(void)
 	for(int i=2; i <= SB.numInodos+1; i++){
 		unmountSB = bwrite(DEVICE_IMAGE, i, (char*) &inodos[i-2]);
 		if(unmountSB == -1){
-		perror("unmountFS: Error al desmontar el Sistema de Ficheros"); 
-		return -1;
-	}
+			perror("unmountFS: Error al desmontar el Sistema de Ficheros"); 
+			return -1;
+		}
 	}
 
 	printf("unmountFile: Desmonte del dispositivo realizado correctamente \n");
@@ -246,7 +246,7 @@ int unmountFS(void)
 int createFile(char *fileName)
 {
 
-/* Comprobación del tamaño del nombre del fichero
+	//Comprobación del tamaño del nombre del fichero
 	if(sizeof(fileName) > MAX_LONGNAME) {
 		perror("createFile: Nombre del archivo demasiado grande\n"); 
 		return -2;
@@ -254,9 +254,8 @@ int createFile(char *fileName)
 	int size = sizeof(fileName);
 	printf("createFile: Longitud %i \n", size);
 
-*/
 
-	//Primero descartamos que el fichero con ese nombre no existe
+		//Primero descartamos que el fichero con ese nombre no existe
 	for(int i=0; i<SB.numInodos;i++){ 
 		if(strcmp(inodos[i].filename, fileName) == 0){ 
 			perror("createFile: Ya existe un fichero con el mismo nombre\n");
@@ -300,6 +299,9 @@ int createFile(char *fileName)
  */
 int removeFile(char *fileName)
 {
+
+	//mkFS(10485760);
+	//createFile(fileName);
 	//Busco el fichero, reinicio sus atributos y restauro las posiciones en el imap e iblock
 	for(int i=0; i<SB.numInodos;i++){ 
 		if(strcmp(inodos[i].filename, fileName) == 0){ 
@@ -345,6 +347,7 @@ int removeFile(char *fileName)
  */
 int openFile(char *fileName)
 {
+	//mkFS(50000);
 	//Verificamos el estado del fichero
 	int verificacion = checkFile(fileName);
 	if(verificacion == -1) {
@@ -691,8 +694,7 @@ int checkFS(void)
 
 
 int checkFile(char *fileName){
-/*
-	//Falta comprobar segun tamaño del fichero que crc usar
+
 	char* buffer = "";
 	for(int i=0; i<SB.numInodos;i++){ //Desde i hasta numero de inodos
 		if(strcmp(inodos[i].filename, fileName) == 0){ 
@@ -715,8 +717,6 @@ int checkFile(char *fileName){
 
 		}
 	}	
-	
-
-*/
-	return 0;
+	//Si llega aquí es un error
+	return -2;
 }
